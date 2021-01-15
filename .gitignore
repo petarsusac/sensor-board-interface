@@ -55,4 +55,4 @@ dkms.conf
 Debug/
 
 # CubeIDE settings
-/.settings/
+.settings/
