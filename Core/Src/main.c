@@ -32,6 +32,10 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define MUX_GPIOX GPIOA
+#define MUX_A0 GPIO_PIN_1
+#define MUX_A1 GPIO_PIN_2
+#define MUX_A2 GPIO_PIN_3
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -43,7 +47,9 @@
 SPI_HandleTypeDef hspi2;
 
 /* USER CODE BEGIN PV */
-
+uint16_t spiOutputBuffer;
+uint16_t spiInputBuffer;
+uint16_t ADCValue;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -51,7 +57,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI2_Init(void);
 /* USER CODE BEGIN PFP */
-
+void MUX_selectChannel(uint8_t channel);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -90,6 +96,14 @@ int main(void)
   MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
 
+  // write gain value to PGA
+  spiOutputBuffer = 0x4000; // MSB - command word (40 - write to register), LSB - gain value
+
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
+  HAL_SPI_Transmit(&hspi2, (uint8_t *) &spiOutputBuffer, 1, HAL_MAX_DELAY);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -99,6 +113,19 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
+	// select channel to read
+	MUX_selectChannel(0);
+
+	// read value from ADC
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
+	HAL_SPI_Receive(&hspi2, (uint8_t *) &spiInputBuffer, 1, HAL_MAX_DELAY);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
+
+	ADCValue = (spiInputBuffer & 0x1FFF) >> 1; // ignore first 3 bits and last bit
+
+	HAL_Delay(100);
+
   }
   /* USER CODE END 3 */
 }
@@ -161,7 +188,7 @@ static void MX_SPI2_Init(void)
   hspi2.Instance = SPI2;
   hspi2.Init.Mode = SPI_MODE_MASTER;
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi2.Init.DataSize = SPI_DATASIZE_16BIT;
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
@@ -217,7 +244,32 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void MUX_selectChannel(uint8_t channel) {
+	if(channel > 7 || channel < 0) return;
 
+	uint8_t lsb;
+
+	lsb = channel & 0x01;
+	if(lsb == 0x00) {
+		HAL_GPIO_WritePin(MUX_GPIOX, MUX_A0, GPIO_PIN_RESET);
+	} else {
+		HAL_GPIO_WritePin(MUX_GPIOX, MUX_A0, GPIO_PIN_SET);
+	}
+
+	lsb = channel & 0x02;
+	if(lsb == 0x00) {
+		HAL_GPIO_WritePin(MUX_GPIOX, MUX_A1, GPIO_PIN_RESET);
+	} else {
+		HAL_GPIO_WritePin(MUX_GPIOX, MUX_A1, GPIO_PIN_SET);
+	}
+
+	lsb = channel & 0x04;
+	if(lsb == 0x00) {
+		HAL_GPIO_WritePin(MUX_GPIOX, MUX_A2, GPIO_PIN_RESET);
+	} else {
+		HAL_GPIO_WritePin(MUX_GPIOX, MUX_A2, GPIO_PIN_SET);
+	}
+}
 /* USER CODE END 4 */
 
 /**
