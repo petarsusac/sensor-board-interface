@@ -49,7 +49,9 @@ SPI_HandleTypeDef hspi2;
 /* USER CODE BEGIN PV */
 uint16_t spiOutputBuffer;
 uint16_t spiInputBuffer;
-uint16_t ADCValue;
+// uint16_t ADCValue;
+uint16_t ADCValues[16384];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -96,12 +98,30 @@ int main(void)
   MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
 
-  // write gain value to PGA
-  spiOutputBuffer = 0x4000; // MSB - command word (40 - write to register), LSB - gain value
+  uint32_t start = HAL_GetTick();
 
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
-  HAL_SPI_Transmit(&hspi2, (uint8_t *) &spiOutputBuffer, 1, HAL_MAX_DELAY);
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+  for(int i = 0; i < 16384; i++) {
+	// write gain value to PGA
+	spiOutputBuffer = 0x4000; // MSB - command word (40 - write to register), LSB - gain value
+
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
+	HAL_SPI_Transmit(&hspi2, (uint8_t *) &spiOutputBuffer, 1, HAL_MAX_DELAY);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+
+	// select channel to read
+	MUX_selectChannel(0);
+
+	// read value from ADC
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
+	HAL_SPI_Receive(&hspi2, (uint8_t *) &spiInputBuffer, 1, HAL_MAX_DELAY);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
+
+	ADCValues[i] = (spiInputBuffer & 0x1FFF) >> 1; // ignore first 3 bits and last bit
+
+  }
+
+  uint32_t elapsed = HAL_GetTick() - start;
+
 
 
   /* USER CODE END 2 */
@@ -113,19 +133,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
-	// select channel to read
-	MUX_selectChannel(0);
-
-	// read value from ADC
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
-	HAL_SPI_Receive(&hspi2, (uint8_t *) &spiInputBuffer, 1, HAL_MAX_DELAY);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
-
-	ADCValue = (spiInputBuffer & 0x1FFF) >> 1; // ignore first 3 bits and last bit
-
-	HAL_Delay(100);
-
   }
   /* USER CODE END 3 */
 }
