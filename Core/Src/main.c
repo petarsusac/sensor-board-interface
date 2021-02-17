@@ -140,7 +140,7 @@ int main(void)
 		}
 
 		// transmit sample
-		CDC_Transmit_FS(sample, sizeof(sample));
+		CDC_Transmit_FS((uint8_t *) sample, sizeof(sample));
 	}
 
 	// when all samples are transmitted, reset variables and wait for next request from host
