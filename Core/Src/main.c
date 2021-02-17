@@ -19,10 +19,11 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "usbd_cdc_if.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,9 +50,10 @@ SPI_HandleTypeDef hspi2;
 /* USER CODE BEGIN PV */
 uint16_t spiOutputBuffer;
 uint16_t spiInputBuffer;
-// uint16_t ADCValue;
-uint16_t ADCValues[16384];
+uint16_t ADCValues[10];
 
+uint8_t noSamples;
+uint8_t noChannels;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -96,33 +98,16 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_SPI2_Init();
+  MX_USB_DEVICE_Init();
+
   /* USER CODE BEGIN 2 */
 
-  uint32_t start = HAL_GetTick();
+  // write gain value to PGA
+  spiOutputBuffer = 0x4000; // MSB - command word (40 - write to register), LSB - gain value
 
-  for(int i = 0; i < 16384; i++) {
-	// write gain value to PGA
-	spiOutputBuffer = 0x4000; // MSB - command word (40 - write to register), LSB - gain value
-
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
-	HAL_SPI_Transmit(&hspi2, (uint8_t *) &spiOutputBuffer, 1, HAL_MAX_DELAY);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
-
-	// select channel to read
-	MUX_selectChannel(0);
-
-	// read value from ADC
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
-	HAL_SPI_Receive(&hspi2, (uint8_t *) &spiInputBuffer, 1, HAL_MAX_DELAY);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
-
-	ADCValues[i] = (spiInputBuffer & 0x1FFF) >> 1; // ignore first 3 bits and last bit
-
-  }
-
-  uint32_t elapsed = HAL_GetTick() - start;
-
-
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
+  HAL_SPI_Transmit(&hspi2, (uint8_t *) &spiOutputBuffer, 1, HAL_MAX_DELAY);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
 
   /* USER CODE END 2 */
 
@@ -133,7 +118,35 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+
+	while(noSamples == 0) {
+		HAL_Delay(10); // wait until host is ready to receive data
+	}
+
+	uint16_t sample[noChannels];
+
+	for(int i = 0; i < noSamples; i++) {
+
+		for(int j = 0; j < noChannels; j++) {
+			// select channel to read
+			MUX_selectChannel(j);
+
+			// read value from ADC
+			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
+			HAL_SPI_Receive(&hspi2, (uint8_t *) &spiInputBuffer, 1, HAL_MAX_DELAY);
+			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
+
+			sample[j] = (spiInputBuffer & 0x1FFF) >> 1; // ignore first 3 bits and last bit
+		}
+
+		// transmit sample
+		CDC_Transmit_FS(sample, sizeof(sample));
+	}
+
+	// when all samples are transmitted, reset variables and wait for next request from host
+	noSamples = 0;
+	noChannels = 0;
+}
   /* USER CODE END 3 */
 }
 
@@ -153,10 +166,16 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 4;
+  RCC_OscInitStruct.PLL.PLLN = 72;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = 3;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -224,6 +243,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
@@ -275,6 +295,14 @@ void MUX_selectChannel(uint8_t channel) {
 		HAL_GPIO_WritePin(MUX_GPIOX, MUX_A2, GPIO_PIN_RESET);
 	} else {
 		HAL_GPIO_WritePin(MUX_GPIOX, MUX_A2, GPIO_PIN_SET);
+	}
+}
+
+// this function is executed when data is received via CDC
+void CDC_Receive_Callback(uint8_t *buff, uint32_t len) {
+	if(len == 2) {
+		noSamples = buff[0];
+		noChannels = buff[1];
 	}
 }
 /* USER CODE END 4 */
