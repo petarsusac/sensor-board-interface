@@ -120,30 +120,34 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
 	while(noSamples == 0) {
-		HAL_Delay(10); // wait until host is ready to receive data
+		HAL_Delay(10); // wait until host requests data
 	}
 
 	uint16_t sample[noChannels];
 
-	for(int i = 0; i < noSamples; i++) {
+	while(noSamples > 0) {
 
-		for(int j = 0; j < noChannels; j++) {
+		for(int ch = 0; ch < noChannels; ch++) {
 			// select channel to read
-			MUX_selectChannel(j);
+			MUX_selectChannel(ch);
+
+			HAL_Delay(2); // wait for MUX output to stabilize (?)
 
 			// read value from ADC
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
 			HAL_SPI_Receive(&hspi2, (uint8_t *) &spiInputBuffer, 1, HAL_MAX_DELAY);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
 
-			sample[j] = (spiInputBuffer & 0x1FFF) >> 1; // ignore first 3 bits and last bit
+			sample[ch] = (spiInputBuffer & 0x1FFF) >> 1; // ignore first 3 bits and last bit
 		}
 
 		// transmit sample
 		CDC_Transmit_FS((uint8_t *) sample, sizeof(sample));
+
+		noSamples--;
 	}
 
-	// when all samples are transmitted, reset variables and wait for next request from host
+	// when all samples are transmitted, reset variables (just in case) and wait for next request from host
 	noSamples = 0;
 	noChannels = 0;
 }
