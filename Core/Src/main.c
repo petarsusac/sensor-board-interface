@@ -23,6 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdlib.h>
 #include "usbd_cdc_if.h"
 /* USER CODE END Includes */
 
@@ -54,6 +55,7 @@ uint16_t ADCValues[10];
 
 uint8_t noSamples;
 uint8_t noChannels;
+uint8_t *channels;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -127,18 +129,18 @@ int main(void)
 
 	while(noSamples > 0) {
 
-		for(int ch = 0; ch < noChannels; ch++) {
-			// select channel to read
-			MUX_selectChannel(ch);
+		for(uint8_t i = 0; i < noChannels; i++) {
 
-			HAL_Delay(2); // wait for MUX output to stabilize (?)
+			MUX_selectChannel(channels[i]);
+
+			HAL_Delay(4); // wait for MUX output to stabilize (??)
 
 			// read value from ADC
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
 			HAL_SPI_Receive(&hspi2, (uint8_t *) &spiInputBuffer, 1, HAL_MAX_DELAY);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
 
-			sample[ch] = (spiInputBuffer & 0x1FFF) >> 1; // ignore first 3 bits and last bit
+			sample[i] = (spiInputBuffer & 0x1FFF) >> 1; // ignore first 3 bits and last bit
 		}
 
 		// transmit sample
@@ -147,9 +149,10 @@ int main(void)
 		noSamples--;
 	}
 
-	// when all samples are transmitted, reset variables (just in case) and wait for next request from host
+	// when all samples are transmitted, reset variables (just in case), free memory, and wait for next request from host
 	noSamples = 0;
 	noChannels = 0;
+	free(channels);
 }
   /* USER CODE END 3 */
 }
@@ -276,37 +279,43 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void MUX_selectChannel(uint8_t channel) {
-	if(channel > 7 || channel < 0) return;
+	if(channel > 8 || channel < 1) return;
 
-	uint8_t lsb;
+	channel -= 1; // mux channels are labeled 1-8, but corresponding logical values are 0-7
 
-	lsb = channel & 0x01;
-	if(lsb == 0x00) {
+	uint8_t bit;
+
+	bit = channel & 0x01;
+	if(bit == 0x00) {
 		HAL_GPIO_WritePin(MUX_GPIOX, MUX_A0, GPIO_PIN_RESET);
 	} else {
 		HAL_GPIO_WritePin(MUX_GPIOX, MUX_A0, GPIO_PIN_SET);
 	}
 
-	lsb = channel & 0x02;
-	if(lsb == 0x00) {
+	bit = channel & 0x02;
+	if(bit == 0x00) {
 		HAL_GPIO_WritePin(MUX_GPIOX, MUX_A1, GPIO_PIN_RESET);
 	} else {
 		HAL_GPIO_WritePin(MUX_GPIOX, MUX_A1, GPIO_PIN_SET);
 	}
 
-	lsb = channel & 0x04;
-	if(lsb == 0x00) {
+	bit = channel & 0x04;
+	if(bit == 0x00) {
 		HAL_GPIO_WritePin(MUX_GPIOX, MUX_A2, GPIO_PIN_RESET);
 	} else {
 		HAL_GPIO_WritePin(MUX_GPIOX, MUX_A2, GPIO_PIN_SET);
 	}
 }
 
-// this function is executed when data is received via CDC
+// this function is called when data is received via CDC
 void CDC_Receive_Callback(uint8_t *buff, uint32_t len) {
-	if(len == 2) {
-		noSamples = buff[0];
-		noChannels = buff[1];
+	/* It may be a good idea to check if received data is invalid, i.e. if channel values are out of range,
+	 * or if there is more than 6 channels. For now we will assume the host only sends valid data. */
+	noSamples = buff[0];
+	noChannels = len - 1;
+	channels = (uint8_t *) malloc(noChannels);
+	for(uint8_t i = 0; i < noChannels; i++) {
+		channels[i] = buff[i + 1];
 	}
 }
 /* USER CODE END 4 */
