@@ -51,11 +51,11 @@ SPI_HandleTypeDef hspi2;
 /* USER CODE BEGIN PV */
 uint16_t spiOutputBuffer;
 uint16_t spiInputBuffer;
-uint16_t ADCValues[10];
 
 uint8_t noSamples;
 uint8_t noChannels;
 uint8_t *channels;
+uint16_t *samples;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -125,12 +125,9 @@ int main(void)
 		HAL_Delay(10); // wait until host requests data
 	}
 
-	uint16_t sample[noChannels];
-
-	while(noSamples > 0) {
-
-		for(uint8_t i = 0; i < noChannels; i++) {
-
+	for(int index = 0; index < noSamples * noChannels; index += noChannels) {
+		for(int i = 0; i < noChannels; i++) {
+			// select channel to read from
 			MUX_selectChannel(channels[i]);
 
 			HAL_Delay(4); // wait for MUX output to stabilize (??)
@@ -140,19 +137,18 @@ int main(void)
 			HAL_SPI_Receive(&hspi2, (uint8_t *) &spiInputBuffer, 1, HAL_MAX_DELAY);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
 
-			sample[i] = (spiInputBuffer & 0x1FFF) >> 1; // ignore first 3 bits and last bit
+			samples[index + i] = (spiInputBuffer & 0x1FFF) >> 1; // ignore first 3 bits and last bit
 		}
-
-		// transmit sample
-		CDC_Transmit_FS((uint8_t *) sample, sizeof(sample));
-
-		noSamples--;
 	}
 
-	// when all samples are transmitted, reset variables (just in case), free memory, and wait for next request from host
+	// transmit samples
+	CDC_Transmit_FS((uint8_t *) samples, noSamples * noChannels * 2);
+
+	// reset variables (just in case), free memory, and wait for next request from host
 	noSamples = 0;
 	noChannels = 0;
 	free(channels);
+	free(samples);
 }
   /* USER CODE END 3 */
 }
@@ -307,16 +303,21 @@ void MUX_selectChannel(uint8_t channel) {
 	}
 }
 
-// this function is called when data is received via CDC
 void CDC_Receive_Callback(uint8_t *buff, uint32_t len) {
 	/* It may be a good idea to check if received data is invalid, i.e. if channel values are out of range,
 	 * or if there is more than 6 channels. For now we will assume the host only sends valid data. */
+
 	noSamples = buff[0];
 	noChannels = len - 1;
+
+	// create an array containing labels of channels to be sampled
 	channels = (uint8_t *) malloc(noChannels);
 	for(uint8_t i = 0; i < noChannels; i++) {
 		channels[i] = buff[i + 1];
 	}
+
+	// allocate memory for samples
+	samples = (uint16_t *) malloc(noSamples * noChannels * 2);
 }
 /* USER CODE END 4 */
 
