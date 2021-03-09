@@ -127,8 +127,8 @@ int main(void)
 	// allocate memory for samples
 	samples = (uint16_t *) malloc(noSamples * noChannels * 2);
 
-	for(uint8_t i = 0; i < noSamples; i++) {
-		for(uint16_t j = 0; j < noChannels; j++) {
+	for(uint16_t i = 0; i < noSamples; i++) {
+		for(uint8_t j = 0; j < noChannels; j++) {
 
 			// select channel to read from
 			MUX_select_channel(channels[j]);
