@@ -101,7 +101,6 @@ int main(void)
   MX_GPIO_Init();
   MX_SPI2_Init();
   MX_USB_DEVICE_Init();
-
   /* USER CODE BEGIN 2 */
 
   // write gain value to PGA
@@ -128,12 +127,11 @@ int main(void)
 	// allocate memory for samples
 	samples = (uint16_t *) malloc(noSamples * noChannels * 2);
 
-
-	for(size_t index = 0; index < noSamples * noChannels; index += noChannels) {
-		for(uint8_t i = 0; i < noChannels; i++) {
+	for(uint8_t i = 0; i < noSamples; i++) {
+		for(uint16_t j = 0; j < noChannels; j++) {
 
 			// select channel to read from
-			MUX_select_channel(channels[i]);
+			MUX_select_channel(channels[j]);
 
 			HAL_Delay(4); // wait for MUX output to stabilize (??)
 
@@ -142,7 +140,7 @@ int main(void)
 			HAL_SPI_Receive(&hspi2, (uint8_t *) &spiInputBuffer, 1, HAL_MAX_DELAY);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
 
-			samples[index + i] = (spiInputBuffer & 0x1FFF) >> 1; // ignore first 3 bits and last bit
+			samples[i * noChannels + j] = (spiInputBuffer & 0x1FFF) >> 1; // ignore first 3 bits and last bit
 
 		}
 	}
