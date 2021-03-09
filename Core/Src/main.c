@@ -52,7 +52,7 @@ SPI_HandleTypeDef hspi2;
 uint16_t spiOutputBuffer;
 uint16_t spiInputBuffer;
 
-uint8_t noSamples;
+uint16_t noSamples;
 uint8_t noChannels;
 uint8_t *channels;
 uint16_t *samples;
@@ -128,6 +128,7 @@ int main(void)
 	// allocate memory for samples
 	samples = (uint16_t *) malloc(noSamples * noChannels * 2);
 
+
 	for(size_t index = 0; index < noSamples * noChannels; index += noChannels) {
 		for(uint8_t i = 0; i < noChannels; i++) {
 
@@ -142,6 +143,7 @@ int main(void)
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
 
 			samples[index + i] = (spiInputBuffer & 0x1FFF) >> 1; // ignore first 3 bits and last bit
+
 		}
 	}
 
@@ -301,16 +303,16 @@ void CDC_Receive_Callback(uint8_t *buff, uint32_t len)
 {
 	/*
 	 * It may be a good idea to check if received data is invalid, i.e. if channel values are out of range,
-	 * or if there is more than 6 channels. For now we will assume the host only sends valid data.
+	 * or if there is more than 8 channels. For now we will assume the host only sends valid data.
 	 */
 
-	noSamples = buff[0];
-	noChannels = len - 1;
+	noSamples = buff[0] | (buff[1] << 8);
+	noChannels = len - 2;
 
 	// create an array containing labels of channels to be sampled
 	channels = (uint8_t *) malloc(noChannels);
 	for(uint8_t i = 0; i < noChannels; i++) {
-		channels[i] = buff[i + 1];
+		channels[i] = buff[i + 2];
 	}
 }
 
