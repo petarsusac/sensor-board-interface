@@ -127,21 +127,19 @@ int main(void)
 	// allocate memory for samples
 	samples = (uint16_t *) malloc(noSamples * noChannels * 2);
 
-	for(uint16_t i = 0; i < noSamples; i++) {
-		for(uint8_t j = 0; j < noChannels; j++) {
+	for(uint8_t j = 0; j < noChannels; j++) {
+		// select channel to read from
+		MUX_select_channel(channels[j]);
 
-			// select channel to read from
-			MUX_select_channel(channels[j]);
+		HAL_Delay(5); // wait for output to stabilize
 
-			HAL_Delay(4); // wait for MUX output to stabilize (??)
-
+		for(uint16_t i = 0; i < noSamples; i++) {
 			// read value from ADC
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
 			HAL_SPI_Receive(&hspi2, (uint8_t *) &spiInputBuffer, 1, HAL_MAX_DELAY);
 			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
 
 			samples[i * noChannels + j] = (spiInputBuffer & 0x1FFF) >> 1; // ignore first 3 bits and last bit
-
 		}
 	}
 
