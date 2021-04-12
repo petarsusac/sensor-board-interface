@@ -25,6 +25,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdlib.h>
 #include "usbd_cdc_if.h"
+#include "sensor.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -34,10 +35,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define MUX_GPIOX GPIOA
-#define MUX_A0 GPIO_PIN_1
-#define MUX_A1 GPIO_PIN_2
-#define MUX_A2 GPIO_PIN_3
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -63,7 +60,6 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI2_Init(void);
 /* USER CODE BEGIN PFP */
-void MUX_select_channel(uint8_t channel);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -103,12 +99,7 @@ int main(void)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
 
-  // write gain value to PGA
-  spiOutputBuffer = 0x4000; // MSB - command word (40 - write to register), LSB - gain value
-
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
-  HAL_SPI_Transmit(&hspi2, (uint8_t *) &spiOutputBuffer, 1, HAL_MAX_DELAY);
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+  PGA_set_gain(1, &hspi2);
 
   /* USER CODE END 2 */
 
@@ -124,24 +115,7 @@ int main(void)
 		HAL_Delay(10); // wait until host requests data
 	}
 
-	// allocate memory for samples
-	samples = (uint16_t *) malloc(noSamples * noChannels * 2);
-
-	for(uint8_t j = 0; j < noChannels; j++) {
-		// select channel to read from
-		MUX_select_channel(channels[j]);
-
-		HAL_Delay(5); // wait for output to stabilize
-
-		for(uint16_t i = 0; i < noSamples; i++) {
-			// read value from ADC
-			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
-			HAL_SPI_Receive(&hspi2, (uint8_t *) &spiInputBuffer, 1, HAL_MAX_DELAY);
-			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
-
-			samples[i * noChannels + j] = (spiInputBuffer & 0x1FFF) >> 1; // ignore first 3 bits and last bit
-		}
-	}
+	uint16_t *samples = get_samples_rev02(noSamples, channels, noChannels, &hspi2);
 
 	// transmit samples
 	CDC_Transmit_FS((uint8_t *) samples, noSamples * noChannels * 2);
@@ -276,24 +250,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
-void MUX_select_channel(uint8_t channel)
-{
-	if(channel > 8 || channel < 1) return;
-
-	channel -= 1; // mux channels are labeled 1-8, but corresponding logical values are 0-7
-
-	uint8_t bit;
-
-	bit = channel & 0x01;
-	HAL_GPIO_WritePin(MUX_GPIOX, MUX_A0, bit);
-
-	bit = (channel & 0x02) >> 1;
-	HAL_GPIO_WritePin(MUX_GPIOX, MUX_A1, bit);
-
-	bit = (channel & 0x04) >> 2;
-	HAL_GPIO_WritePin(MUX_GPIOX, MUX_A2, bit);
-}
 
 void CDC_Receive_Callback(uint8_t *buff, uint32_t len)
 {
