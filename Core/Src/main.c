@@ -118,7 +118,16 @@ int main(void)
 	uint16_t *samples = get_samples_rev02(noSamples, channels, noChannels, &hspi2);
 
 	// transmit samples
-	CDC_Transmit_FS((uint8_t *) samples, noSamples * noChannels * 2);
+	// Since CDC_Transmit_FS sometimes has problems with sending large amounts of data,
+	// samples array is divided into 10 segments and each segment is sent separately.
+	// Uncomment this function call to send the entire array at once:
+	// CDC_Transmit_FS((uint8_t *) samples, noSamples * noChannels * 2);
+
+	for(uint8_t i = 0; i < 10; i++) {
+		CDC_Transmit_FS((uint8_t *) samples + i * (noSamples * noChannels * 2 / 10), noSamples * noChannels * 2 / 10);
+		HAL_Delay(100);
+	}
+
 
 	// reset variables, free memory, and wait for next request from host
 	noSamples = 0;
