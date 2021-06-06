@@ -18,8 +18,8 @@
 
 /* Exported function prototypes ----------------------------------------------*/
 void MUX_select_channel(uint8_t channel);
-void PGA_set_gain(uint8_t gain, SPI_HandleTypeDef *hspi);
-uint16_t *get_samples_rev02(uint16_t noSamples, uint8_t *channels, uint8_t noChannels, SPI_HandleTypeDef *hspi);
+void PGA_set_gain(SPI_HandleTypeDef *hspi, uint8_t gain);
+uint16_t *get_samples_rev02(SPI_HandleTypeDef *hspi, uint16_t noSamples, uint8_t *channels, uint8_t noChannels);
 
 
 #endif

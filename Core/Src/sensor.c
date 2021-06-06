@@ -32,14 +32,14 @@ void MUX_select_channel(uint8_t channel)
 /**
   * @brief  Sets PGA gain.
   *
-  * @param  gain PGA gain. Must be 1, 2, 4, 5, 8, 10, 16 or 32. All other values are ignored
-  * 		and no action is taken.
   * @param	hspi pointer to a SPI_HandleTypeDef structure that contains the configuration
   * 		information for SPI module.
+  * @param  gain PGA gain. Must be 1, 2, 4, 5, 8, 10, 16 or 32. All other values are ignored
+  * 		and no action is taken.
   *
   * @retval None
   */
-void PGA_set_gain(uint8_t gain, SPI_HandleTypeDef *hspi)
+void PGA_set_gain(SPI_HandleTypeDef *hspi, uint8_t gain)
 {
 	uint8_t gainValue = 0;
 
@@ -90,15 +90,15 @@ void PGA_set_gain(uint8_t gain, SPI_HandleTypeDef *hspi)
   * 		when switching between channels, samples are taken by columns (e.g. all samples from channel
   * 		1 are taken before moving on to channel 2).
   *
+  * @param	hspi Pointer to a SPI_HandleTypeDef structure that contains the configuration
+  * 		information for SPI module.
   * @param  noSamples Number of samples to be taken.
   * @param	channels Pointer to an array containing labels of channels to be sampled (1-8).
   * @param	noChannels Number of channels.
-  * @param	hspi Pointer to a SPI_HandleTypeDef structure that contains the configuration
-  * 		information for SPI module.
   *
   * @retval Pointer to an array containing samples.
   */
-uint16_t *get_samples_rev02(uint16_t noSamples, uint8_t *channels, uint8_t noChannels, SPI_HandleTypeDef *hspi)
+uint16_t *get_samples_rev02(SPI_HandleTypeDef *hspi, uint16_t noSamples, uint8_t *channels, uint8_t noChannels)
 {
 	uint16_t spiInputBuffer;
 

@@ -51,6 +51,7 @@ uint16_t spiInputBuffer;
 
 uint16_t noSamples;
 uint8_t noChannels;
+uint8_t boardRev;
 uint8_t *channels;
 uint16_t *samples;
 /* USER CODE END PV */
@@ -99,7 +100,7 @@ int main(void)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
 
-  PGA_set_gain(1, &hspi2);
+  PGA_set_gain(&hspi2, 1);
 
   /* USER CODE END 2 */
 
@@ -111,11 +112,22 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-	while(noSamples == 0) {
-		HAL_Delay(10); // wait until host requests data
+	while(noSamples == 0) ; // wait until host requests data
+
+	uint16_t *samples;
+
+	switch(boardRev) {
+		case 1:
+			// Rev01 - TODO
+			break;
+		case 2:
+			samples = get_samples_rev02(&hspi2, noSamples, channels, noChannels);
+			break;
+		case 3:
+			// Rev03 - TODO
+			break;
 	}
 
-	uint16_t *samples = get_samples_rev02(noSamples, channels, noChannels, &hspi2);
 
 	// transmit samples
 	// Since CDC_Transmit_FS sometimes has problems with sending large amounts of data,
@@ -132,6 +144,7 @@ int main(void)
 	// reset variables, free memory, and wait for next request from host
 	noSamples = 0;
 	noChannels = 0;
+	boardRev = 0;
 	free(channels);
 	free(samples);
   }
@@ -267,13 +280,14 @@ void CDC_Receive_Callback(uint8_t *buff, uint32_t len)
 	 * or if there is more than 8 channels. For now we will assume the host only sends valid data.
 	 */
 
-	noSamples = buff[0] | (buff[1] << 8);
-	noChannels = len - 2;
+	boardRev = buff[0];
+	noSamples = buff[1] | (buff[2] << 8);
+	noChannels = len - 3;
 
 	// create an array containing labels of channels to be sampled
 	channels = (uint8_t *) malloc(noChannels);
 	for(uint8_t i = 0; i < noChannels; i++) {
-		channels[i] = buff[i + 2];
+		channels[i] = buff[i + 3];
 	}
 }
 
